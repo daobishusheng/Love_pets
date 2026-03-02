@@ -1,4 +1,9 @@
 {
   "name": "PetAppNew",
-  "displayName": "PetAppNew"
+  "displayName": "PetAppNew",
+  "extra": {
+    "eas": {
+      "projectId": "e0544bad-c65f-42a4-bbe1-10e9c935320c"
+    }
+  }
 }
