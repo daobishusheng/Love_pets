@@ -105,6 +105,12 @@ android {
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
     }
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.core:core:1.13.1'
+            exclude group: 'com.android.support'
+        }
+    }
 }
 
 dependencies {
