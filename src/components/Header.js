@@ -2,22 +2,29 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { BREEDS } from '../config/breeds';
 import { RARITY } from '../config/rarity';
+import CoinDisplay from './CoinDisplay';
 
-export default function Header({ petBreed, rarity, onBreedChange }) {
+export default function Header({ petBreed, rarity, onBreedChange, coins }) {
   return (
     <View style={styles.header}>
-      <View style={styles.breedSelector}>
-        {Object.keys(BREEDS).map(breed => (
-          <TouchableOpacity
-            key={breed}
-            style={[styles.breedButton, petBreed === breed && styles.activeBreed]}
-            onPress={() => onBreedChange(breed)}>
-            <Text style={styles.breedText}>{BREEDS[breed].emoji}</Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.leftSection}>
+        <View style={styles.breedSelector}>
+          {Object.keys(BREEDS).map(breed => (
+            <TouchableOpacity
+              key={breed}
+              style={[styles.breedButton, petBreed === breed && styles.activeBreed]}
+              onPress={() => onBreedChange(breed)}>
+              <Text style={styles.breedText}>{BREEDS[breed].emoji}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
-      <View style={[styles.rarityBadge, { backgroundColor: RARITY[rarity].color }]}>
-        <Text style={styles.rarityText}>{RARITY[rarity].name}</Text>
+
+      <View style={styles.rightSection}>
+        <CoinDisplay coins={coins} />
+        <View style={[styles.rarityBadge, { backgroundColor: RARITY[rarity].color }]}>
+          <Text style={styles.rarityText}>{RARITY[rarity].name}</Text>
+        </View>
       </View>
     </View>
   );
@@ -29,6 +36,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 10,
+  },
+  leftSection: {
+    flex: 1,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   breedSelector: {
     flexDirection: 'row',

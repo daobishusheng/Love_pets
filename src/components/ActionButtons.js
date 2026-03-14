@@ -8,6 +8,8 @@ export default function ActionButtons({
   onSleep,
   onWake,
   onReborn,
+  onShopPress,
+  onBackpackPress,
   isSleeping,
 }) {
   return (
@@ -36,6 +38,16 @@ export default function ActionButtons({
         <TouchableOpacity style={[styles.button, styles.wake]} onPress={onWake}>
           <Text style={styles.buttonIcon}>🌞</Text>
           <Text style={styles.buttonText}>唤醒</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.shop]} onPress={onShopPress}>
+          <Text style={styles.buttonIcon}>🏪</Text>
+          <Text style={styles.buttonText}>商店</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.button, styles.backpack]} onPress={onBackpackPress}>
+          <Text style={styles.buttonIcon}>🎒</Text>
+          <Text style={styles.buttonText}>背包</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -77,6 +89,8 @@ const styles = StyleSheet.create({
   clean: { backgroundColor: '#2196F3' },
   sleep: { backgroundColor: '#9C27B0' },
   wake: { backgroundColor: '#FFA500' },
+  shop: { backgroundColor: '#FFB6C1' },
+  backpack: { backgroundColor: '#8B4513' },
   rebornButton: {
     padding: 15,
     backgroundColor: '#FF69B4',
