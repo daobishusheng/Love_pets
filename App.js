@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Sound from 'react-native-sound';
-
 import {
   View,
   StyleSheet,
@@ -9,9 +7,11 @@ import {
   Alert,
   AppState,
   Platform,
+  ImageBackground,
 } from 'react-native';
 import Tts from 'react-native-tts';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // 只保留这一处
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Sound from 'react-native-sound';
 
 // 导入配置
 import { BREEDS } from './src/config/breeds';
@@ -26,18 +26,19 @@ import { getImageState } from './src/utils/imageHelper';
 
 // 导入组件
 import Header from './src/components/Header';
-import PetImage from './src/components/PetImage';
 import MessageBubble from './src/components/MessageBubble';
 import ShopModal from './src/components/ShopModal';
 import BackpackModal from './src/components/BackpackModal';
 import ActionChoiceModal from './src/components/ActionChoiceModal';
 import SideButton from './src/components/SideButton';
 import BottomBar from './src/components/BottomBar';
+import UnifiedPet from './src/components/UnifiedPet';
 
 // 导入自定义 Hook
 import useInventory from './src/hooks/useInventory';
 
 export default function App() {
+  // ========== 宠物属性状态 ==========
   const [petBreed, setPetBreed] = useState('cat');
   const [stage, setStage] = useState('baby');
   const [rarity, setRarity] = useState(1);
@@ -50,28 +51,31 @@ export default function App() {
   const [messageVisible, setMessageVisible] = useState(false);
   const [isSleeping, setIsSleeping] = useState(false);
   const [sleepStartTime, setSleepStartTime] = useState(null);
-  
-  
 
-  // 弹窗状态
+  // ========== 弹窗状态 ==========
   const [shopVisible, setShopVisible] = useState(false);
   const [backpackVisible, setBackpackVisible] = useState(false);
   const [actionChoiceVisible, setActionChoiceVisible] = useState(false);
   const [currentAction, setCurrentAction] = useState(null);
   
+  // ========== 动画触发状态 ==========
+  const [triggerAnim, setTriggerAnim] = useState(null);
 
-  // 金币系统
-  const { coins, items, addCoins, spendCoins, addItem, useItem, setInventory} = useInventory();
+  // ========== 金币系统 ==========
+  const { coins, items, addCoins, spendCoins, addItem, useItem, setInventory } = useInventory();
+
+  // ========== 音乐相关 ==========
+  const [isMusicPlaying, setIsMusicPlaying] = useState(true);
+  const backgroundMusic = useRef(null);
+
   // ========== 数据持久化 ==========
   const SAVE_KEY = 'petGameData';
 
-  // 加载存档
   const loadGameData = async () => {
     try {
       const savedData = await AsyncStorage.getItem(SAVE_KEY);
       if (savedData) {
         const data = JSON.parse(savedData);
-        // 恢复宠物状态
         setPetBreed(data.petBreed || 'cat');
         setStage(data.stage || 'baby');
         setRarity(data.rarity || 1);
@@ -82,7 +86,6 @@ export default function App() {
         setEnergy(data.energy || 80);
         setIsSleeping(data.isSleeping || false);
         setSleepStartTime(data.sleepStartTime || null);
-        // 恢复金币和道具
         if (data.coins !== undefined && data.items) {
           setInventory(data.coins, data.items);
         }
@@ -92,7 +95,6 @@ export default function App() {
     }
   };
 
-  // 保存存档
   const saveGameData = async () => {
     try {
       const dataToSave = {
@@ -114,52 +116,14 @@ export default function App() {
       console.error('保存游戏数据失败', error);
     }
   };
-  const [isMusicPlaying, setIsMusicPlaying] = useState(true);
-  const backgroundMusic = useRef(null);
 
-  // 组件挂载时加载存档
-  useEffect(() => {
-    loadGameData();
-  }, []);
+  // ========== 触发动画 ==========
+  const triggerAnimation = (animType, duration = 2000) => {
+    console.log(`🎬 触发动画: ${animType}`);
+    setTriggerAnim(animType);
+    setTimeout(() => setTriggerAnim(null), duration);
+  };
 
-  // 状态变化时自动保存
-  useEffect(() => {
-    saveGameData();
-  }, [
-    petBreed, stage, rarity, exp, hunger, happiness, cleanliness, energy,
-    isSleeping, sleepStartTime, coins, items
-  ]);
-
- // 监听应用进入后台/前台，处理音乐和保存
-  useEffect(() => {
-    Sound.setCategory('Playback', true);
-    
-    const music = new Sound(
-      Platform.OS === 'android' ? 'bgm' : require('./assets/music/bgm.mp3'),
-      Platform.OS === 'android' ? Sound.MAIN_BUNDLE : '',
-      (error) => {
-        if (error) {
-          console.log('❌ 背景音乐加载失败，错误详情:', error);
-          return;
-        }
-        console.log('✅ 背景音乐加载成功，准备播放');
-        music.setNumberOfLoops(-1);
-        music.setVolume(0.5);
-        music.play(() => {
-          console.log('▶️ 音乐开始播放');
-        });
-      }
-    );
-    
-    backgroundMusic.current = music;
-    
-    return () => {
-      if (backgroundMusic.current) {
-        backgroundMusic.current.release();
-        console.log('🛑 音乐资源释放');
-      }
-    };
-  }, []);
   // ========== 道具相关 ==========
   const handleBuyItem = (item) => {
     if (spendCoins(item.price)) {
@@ -179,6 +143,10 @@ export default function App() {
       if (item.effect.energy) setEnergy(prev => Math.min(100, prev + item.effect.energy));
       if (item.effect.exp) setExp(prev => prev + item.effect.exp);
       speak(`使用了 ${item.name}！效果拔群～`, 'happy');
+      
+      if (item.type === 'feed') triggerAnimation('feeding', 2000);
+      else if (item.type === 'play') triggerAnimation('caress', 1500);
+      else if (item.type === 'clean') triggerAnimation('wash', 2000);
     } else {
       Alert.alert('没有该道具', '先去商店购买吧');
     }
@@ -186,17 +154,12 @@ export default function App() {
 
   // ========== 普通动作 ==========
   const performNormalFeed = () => {
-    if (isSleeping) {
-      speak('呼噜呼噜...在睡觉呢', 'sleep');
-      return;
-    }
-    if (energy < 10) {
-      speak('嗯...让我休息一下嘛', 'sad');
-      return;
-    }
+    console.log('🍖 执行普通喂食');
+    if (isSleeping) { speak('呼噜呼噜...在睡觉呢', 'sleep'); return; }
+    if (energy < 10) { speak('嗯...让我休息一下嘛', 'sad'); return; }
     setHunger(prev => Math.min(100, prev + 20));
     setExp(prev => prev + 10);
-    setEnergy(prev => prev - 5);
+    setEnergy(prev => prev - 1);
     if (Math.random() < 0.3) {
       const coinAmount = Math.floor(Math.random() * 5) + 1;
       addCoins(coinAmount);
@@ -204,20 +167,16 @@ export default function App() {
     } else {
       speakRandom('feed', 'feed');
     }
+    triggerAnimation('feeding', 2000);
   };
 
   const performNormalPlay = () => {
-    if (isSleeping) {
-      speak('呼噜呼噜...在睡觉呢', 'sleep');
-      return;
-    }
-    if (energy < 15) {
-      speak('玩不动啦，好累哦', 'sad');
-      return;
-    }
+    console.log('🎾 执行普通玩耍');
+    if (isSleeping) { speak('呼噜呼噜...在睡觉呢', 'sleep'); return; }
+    if (energy < 15) { speak('玩不动啦，好累哦', 'sad'); return; }
     setHappiness(prev => Math.min(100, prev + 15));
     setExp(prev => prev + 15);
-    setEnergy(prev => prev - 10);
+    setEnergy(prev => prev - 5);
     if (Math.random() < 0.3) {
       const coinAmount = Math.floor(Math.random() * 5) + 1;
       addCoins(coinAmount);
@@ -225,19 +184,15 @@ export default function App() {
     } else {
       speakRandom('play', 'play');
     }
+    triggerAnimation('caress', 1500);
   };
 
   const performNormalClean = () => {
-    if (isSleeping) {
-      speak('呼噜呼噜...在睡觉呢', 'sleep');
-      return;
-    }
-    if (energy < 5) {
-      speak('太累啦，洗不动了啦', 'sad');
-      return;
-    }
+    console.log('🧼 执行普通清洁');
+    if (isSleeping) { speak('呼噜呼噜...在睡觉呢', 'sleep'); return; }
+    if (energy < 5) { speak('太累啦，洗不动了啦', 'sad'); return; }
     setCleanliness(prev => Math.min(100, prev + 20));
-    setEnergy(prev => prev - 3);
+    setEnergy(prev => prev - 1);
     if (Math.random() < 0.3) {
       const coinAmount = Math.floor(Math.random() * 5) + 1;
       addCoins(coinAmount);
@@ -245,21 +200,24 @@ export default function App() {
     } else {
       speakRandom('clean', 'clean');
     }
+    triggerAnimation('wash', 2000);
   };
 
   // ========== 按钮处理 ==========
   const handleFeed = () => {
+    console.log('🍖 喂食按钮被点击，打开弹窗');
     setCurrentAction('feed');
     setActionChoiceVisible(true);
   };
 
   const handlePlay = () => {
+    console.log('🎾 玩耍按钮被点击，打开弹窗');
     setCurrentAction('play');
     setActionChoiceVisible(true);
   };
 
   const handleClean = () => {
-    console.log('清洁按钮被点击了！');
+    console.log('🧼 清洁按钮被点击，打开弹窗');
     setCurrentAction('clean');
     setActionChoiceVisible(true);
   };
@@ -268,17 +226,14 @@ export default function App() {
     if (!isSleeping) {
       setIsSleeping(true);
       setSleepStartTime(Date.now());
-      setEnergy(prev => Math.min(100, prev + 30));
       setHappiness(prev => Math.max(0, prev - 5));
       speakRandom('sleep', 'sleep');
     }
   };
 
   const handleWakeUp = () => {
-    if (!isSleeping) {
-      speak('我没有在睡觉呀～', 'wake');
-      return;
-    }
+    if (!isSleeping) { speak('我没有在睡觉呀～', 'wake'); return; }
+    if (energy < 50) { speak('精力不足，叫不醒...', 'sleep'); return; }
     const sleepDuration = sleepStartTime ? (Date.now() - sleepStartTime) / 60000 : 0;
     if (sleepDuration >= 3 || energy >= 80) {
       setIsSleeping(false);
@@ -291,6 +246,7 @@ export default function App() {
   };
 
   const handleReborn = () => {
+    console.log('🔄 重生按钮被点击');
     Alert.alert(
       '真的要重生吗？',
       '重生后我会回到小宝宝，但是会记得你哦～',
@@ -323,8 +279,8 @@ export default function App() {
     );
   };
 
-  // ========== 签到 ==========
   const handleSign = async () => {
+    console.log('📅 签到按钮被点击');
     try {
       const today = new Date().toDateString();
       const lastSignDate = await AsyncStorage.getItem('lastSignDate');
@@ -342,33 +298,49 @@ export default function App() {
   };
 
   const toggleMusic = () => {
-  if (backgroundMusic.current) {
-    if (isMusicPlaying) {
-      backgroundMusic.current.pause();
-    } else {
-      backgroundMusic.current.play();
+    if (backgroundMusic.current) {
+      if (isMusicPlaying) {
+        backgroundMusic.current.pause();
+      } else {
+        backgroundMusic.current.play();
+      }
+      setIsMusicPlaying(!isMusicPlaying);
     }
-    setIsMusicPlaying(!isMusicPlaying);
-  }
-};
+  };
 
-  // ========== 品种切换 ==========
   const changeBreed = (breed) => {
     setPetBreed(breed);
     const msg = `我是${BREEDS[breed].name}，请多关照呀～`;
     speak(msg, 'greeting');
   };
 
-  // ========== TTS 初始化 ==========
+  // ========== useEffect ==========
+  useEffect(() => { loadGameData(); }, []);
+  useEffect(() => { saveGameData(); }, [petBreed, stage, rarity, exp, hunger, happiness, cleanliness, energy, isSleeping, sleepStartTime, coins, items]);
+
+  useEffect(() => {
+    Sound.setCategory('Playback', true);
+    const music = new Sound(
+      Platform.OS === 'android' ? 'bgm' : require('./assets/music/bgm.mp3'),
+      Platform.OS === 'android' ? Sound.MAIN_BUNDLE : '',
+      (error) => {
+        if (error) { console.log('❌ 背景音乐加载失败', error); return; }
+        console.log('✅ 背景音乐加载成功');
+        music.setNumberOfLoops(-1);
+        music.setVolume(0.5);
+        music.play();
+      }
+    );
+    backgroundMusic.current = music;
+    return () => { if (backgroundMusic.current) backgroundMusic.current.release(); };
+  }, []);
+
   useEffect(() => {
     initializeTTS();
-    const timer = setTimeout(() => {
-      speakRandom('greeting', 'greeting');
-    }, 3000);
+    const timer = setTimeout(() => speakRandom('greeting', 'greeting'), 3000);
     return () => clearTimeout(timer);
   }, []);
 
-  // ========== 随时间衰减 ==========
   useEffect(() => {
     const timer = setInterval(() => {
       if (!isSleeping) {
@@ -381,7 +353,23 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isSleeping]);
 
-  // ========== 进化检查 ==========
+  useEffect(() => {
+    if (isSleeping) {
+      const timer = setInterval(() => {
+        setEnergy(prev => {
+          const newEnergy = Math.min(100, prev + 1);
+          if (newEnergy >= 100) {
+            setIsSleeping(false);
+            setSleepStartTime(null);
+            speak('精力满满，起床啦！', 'wake');
+          }
+          return newEnergy;
+        });
+      }, 8000);
+      return () => clearInterval(timer);
+    }
+  }, [isSleeping]);
+
   useEffect(() => {
     const result = getNextStage(stage, exp, RARITY[rarity].multiplier);
     if (result.stage !== stage) {
@@ -401,46 +389,47 @@ export default function App() {
     }
   }, [exp]);
 
-  // ========== 状态触发台词 ==========
   useEffect(() => {
     const timer = setTimeout(() => {
       if (!isSleeping) {
-        if (hunger < 30 && hunger > 0) {
-          speakRandom('hungry', 'sad');
-        } else if (happiness < 30 && happiness > 0) {
-          speakRandom('sad', 'sad');
-        } else if (cleanliness < 30 && cleanliness > 0) {
-          speakRandom('dirty', 'sad');
-        } else if (energy < 30 && energy > 0) {
-          speakRandom('sick', 'sad');
-        }
+        if (hunger < 30 && hunger > 0) speakRandom('hungry', 'sad');
+        else if (happiness < 30 && happiness > 0) speakRandom('sad', 'sad');
+        else if (cleanliness < 30 && cleanliness > 0) speakRandom('dirty', 'sad');
+        else if (energy < 30 && energy > 0) speakRandom('sick', 'sad');
       }
     }, 1000);
     return () => clearTimeout(timer);
   }, [hunger, happiness, cleanliness, energy, isSleeping]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'background') {
+        if (backgroundMusic.current && isMusicPlaying) backgroundMusic.current.pause();
+        saveGameData();
+      } else if (nextAppState === 'active') {
+        if (backgroundMusic.current && isMusicPlaying) backgroundMusic.current.play();
+      }
+    });
+    return () => subscription.remove();
+  }, [isMusicPlaying]);
 
   // ========== 说话函数 ==========
   const speak = (text, action = 'default') => {
     setMessage(text);
     setMessageVisible(true);
     setTimeout(() => setMessageVisible(false), 3000);
-
     const voiceConfig = getVoiceConfig(action, stage);
-
     let finalText = text;
     if (action !== 'greeting' && action !== 'evolution') {
       const breed = BREEDS[petBreed];
       finalText = `${breed.sound} ${text}`;
     }
-
     setTimeout(() => {
       try {
         Tts.setDefaultRate(voiceConfig.rate);
         Tts.setDefaultPitch(voiceConfig.pitch);
         Tts.speak(finalText);
-      } catch (err) {
-        console.log('TTS暂时不可用:', err);
-      }
+      } catch (err) { console.log('TTS暂时不可用:', err); }
     }, 100);
   };
 
@@ -450,153 +439,85 @@ export default function App() {
     speak(phrases[randomIndex], action);
   };
 
-  const imageState = getImageState(hunger, happiness, cleanliness, energy, isSleeping);
+  const staticImageState = getImageState(hunger, happiness, cleanliness, energy, isSleeping);
 
+  // ========== 渲染 ==========
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFF0F5" />
+    <ImageBackground source={require('./assets/backgrounds/indoor.png')} style={styles.backgroundImage} resizeMode="cover">
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF0F5" />
+        <Header petBreed={petBreed} rarity={rarity} onBreedChange={changeBreed} coins={coins} />
 
-      <Header
-        petBreed={petBreed}
-        rarity={rarity}
-        onBreedChange={changeBreed}
-        coins={coins}
-      />
+        <View style={styles.middle}>
+          <View style={styles.leftButtons}>
+            <SideButton imageSource={require('./images/icons/food.png')} label="喂食" onPress={handleFeed} />
+            <SideButton imageSource={require('./images/icons/play.png')} label="玩耍" onPress={handlePlay} />
+          </View>
 
-      <View style={styles.middle}>
-        {/* 左侧按钮 */}
-        <View style={styles.leftButtons}>
-          <SideButton
-            imageSource={require('./images/icons/clean.png')}
-            label="清洁"
-            onPress={handleClean}
-          />
-          <SideButton
-            imageSource={require('./images/icons/food.png')}
-            label="喂食"
-            onPress={handleFeed}
-          />
-          <SideButton
-            imageSource={require('./images/icons/play.png')}
-            label="玩耍"
-            onPress={handlePlay}
-          />
+          <View style={styles.petContainer}>
+            <MessageBubble message={message} visible={messageVisible} isSleeping={isSleeping} />
+            <UnifiedPet
+              petBreed={petBreed}
+              imageState={triggerAnim}
+              isSleeping={isSleeping}
+              happiness={happiness}
+              hunger={hunger}
+              cleanliness={cleanliness}
+              energy={energy}
+              onCaress={() => {
+                console.log('🤚 抚摸宠物');
+                setHappiness(prev => Math.min(100, prev + 8));
+                speak('喵～好舒服呀', 'happy');
+                triggerAnimation('caress', 1500);
+              }}
+            />
+          </View>
+
+          <View style={styles.rightButtons}>
+            <SideButton imageSource={require('./images/icons/clean.png')} label="清洁" onPress={handleClean} />
+            <SideButton imageSource={require('./images/icons/sleep.png')} label="睡觉" onPress={handleSleep} />
+            <SideButton imageSource={require('./images/icons/wake.png')} label="唤醒" onPress={handleWakeUp} />
+          </View>
         </View>
 
-        {/* 宠物区域 */}
-        <View style={styles.petContainer}>
-          <PetImage
-            petBreed={petBreed}
-            imageState={imageState}
-            happiness={happiness}
-          />
-          <MessageBubble
-            message={message}
-            visible={messageVisible}
-            isSleeping={isSleeping}
-          />
-        </View>
+        <BottomBar
+          hunger={hunger}
+          happiness={happiness}
+          cleanliness={cleanliness}
+          energy={energy}
+          onShop={() => setShopVisible(true)}
+          onBackpack={() => setBackpackVisible(true)}
+          onReborn={handleReborn}
+          onSign={handleSign}
+          onMusicToggle={toggleMusic}
+          isMusicPlaying={isMusicPlaying}
+        />
 
-        {/* 右侧按钮 */}
-        <View style={styles.rightButtons}>
-         
-          <SideButton
-            imageSource={require('./images/icons/sleep.png')}
-            label="睡觉"
-            onPress={handleSleep}
-          />
-          <SideButton
-            imageSource={require('./images/icons/wake.png')}
-            label="唤醒"
-            onPress={handleWakeUp}
-          />
-        </View>
-      </View>
-
-      <BottomBar
-        hunger={hunger}
-        happiness={happiness}
-        cleanliness={cleanliness}
-        energy={energy}
-        onShop={() => {
-          console.log('商店按钮被点击');
-          setShopVisible(true);
-        }}
-        onBackpack={() => {
-          console.log('背包按钮被点击');
-          setBackpackVisible(true);
-        }}
-        onReborn={() => {
-          console.log('重生按钮被点击');
-          handleReborn();
-        }}
-        onSign={() => {
-          console.log('签到按钮被点击');
-          handleSign();
-        }}
-        onMusicToggle={toggleMusic}      // 新增
-        isMusicPlaying={isMusicPlaying}   // 新增
-      />
-      <ShopModal
-        visible={shopVisible}
-        onClose={() => setShopVisible(false)}
-        coins={coins}
-        items={items}
-        onBuy={handleBuyItem}
-        onUseItem={handleUseItem}
-      />
-
-      <BackpackModal
-        visible={backpackVisible}
-        onClose={() => setBackpackVisible(false)}
-        items={items}
-        onUseItem={handleUseItem}
-      />
-
-      <ActionChoiceModal
-        visible={actionChoiceVisible}
-        onClose={() => setActionChoiceVisible(false)}
-        items={items}
-        actionType={currentAction}
-        onUseItem={handleUseItem}
-        onNormalAction={() => {
-          if (currentAction === 'feed') performNormalFeed();
-          else if (currentAction === 'play') performNormalPlay();
-          else if (currentAction === 'clean') performNormalClean();
-        }}
-      />
-    </SafeAreaView>
+        <ShopModal visible={shopVisible} onClose={() => setShopVisible(false)} coins={coins} items={items} onBuy={handleBuyItem} onUseItem={handleUseItem} />
+        <BackpackModal visible={backpackVisible} onClose={() => setBackpackVisible(false)} items={items} onUseItem={handleUseItem} />
+        <ActionChoiceModal
+          visible={actionChoiceVisible}
+          onClose={() => setActionChoiceVisible(false)}
+          items={items}
+          actionType={currentAction}
+          onUseItem={handleUseItem}
+          onNormalAction={() => {
+            console.log(`🎬 执行普通动作: ${currentAction}`);
+            if (currentAction === 'feed') performNormalFeed();
+            else if (currentAction === 'play') performNormalPlay();
+            else if (currentAction === 'clean') performNormalClean();
+          }}
+        />
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFF0F5',
-    padding: 10,
-  },
-    middle: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginVertical: 10,
-    },
-    leftButtons: {
-      width: 60,                 // 固定宽度，与按钮宽度匹配
-      alignItems: 'center',
-      marginRight: 2, 
-      marginTop: 300,            // 稍微缩小右边距
-    },
-    rightButtons: {
-      width: 60,
-      alignItems: 'center',
-      marginLeft: 2,
-      marginTop: 300,              // 稍微缩小左边距
-    },
-    petContainer: {
-      flex: 1,                    // 让宠物区域自动占满剩余空间
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
+  container: { flex: 1, padding: 10 },
+  backgroundImage: { flex: 1, width: '100%', height: '100%' },
+  middle: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginVertical: 10 },
+  leftButtons: { width: 60, alignItems: 'center', marginRight: 2, marginTop: -300 },
+  rightButtons: { width: 60, alignItems: 'center', marginLeft: 2, marginTop: -300 },
+  petContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 250 },
 });
